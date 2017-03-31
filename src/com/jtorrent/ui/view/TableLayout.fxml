@@ -12,10 +12,10 @@
          <children>
             <ToolBar prefHeight="35.0" prefWidth="1008.0" AnchorPane.bottomAnchor="18.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                <items>
-                  <Button mnemonicParsing="false" prefWidth="60.0" text="New" />
+                  <Button mnemonicParsing="false" onAction="#handleNewTorrent" prefWidth="60.0" text="New" />
                   <Button mnemonicParsing="false" onAction="#handleStartTorrent" prefWidth="60.0" text="Start" />
                   <Button mnemonicParsing="false" onAction="#handleStopTorrent" prefWidth="60.0" text="Stop" />
-                  <Button mnemonicParsing="false" prefWidth="60.0" text="Remove" />
+                  <Button mnemonicParsing="false" onAction="#handleRemoveTorrent" prefWidth="60.0" text="Remove" />
                </items>
             </ToolBar>
          </children>
