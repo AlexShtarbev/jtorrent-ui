@@ -6,7 +6,6 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.stage.Stage;
 import javafx.scene.Scene;
-import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.BorderPane;
 
 import com.jtorrent.torrent.TorrentClient;
@@ -52,7 +51,7 @@ public class MainApp extends Application {
 		try {
 			FXMLLoader loader = new FXMLLoader();
 	        loader.setLocation(MainApp.class.getResource("view/TableLayout.fxml"));
-	        AnchorPane tableLayout = (AnchorPane) loader.load();
+	        BorderPane tableLayout = (BorderPane) loader.load();
 	        
 	        _rootLayout.setCenter(tableLayout);
 	        

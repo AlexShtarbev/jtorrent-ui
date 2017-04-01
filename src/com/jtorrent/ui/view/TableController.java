@@ -1,6 +1,8 @@
 package com.jtorrent.ui.view;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -19,6 +21,8 @@ import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
@@ -37,6 +41,7 @@ public class TableController {
 		REMOVE
 	}
 	
+	// Table view fxids.
 	@FXML
     private TableView<TorrentTask> _torrentTable;
     @FXML
@@ -51,6 +56,25 @@ public class TableController {
     private TableColumn<TorrentTask, String> _downloadColumn;
     @FXML
     private TableColumn<TorrentTask, String> _uploadColumn;
+    
+    @FXML
+    private Label _totalSizeLabel;
+    @FXML
+    private Label _createdOnLabel;
+    @FXML
+    private Label _createdByLabel;
+    @FXML
+    private Label _hashLabel;
+    @FXML
+    private Label _commentLabel;
+    @FXML
+    private Label _piecesLabel;
+    @FXML
+    private Label _downloadedLabel;
+    @FXML
+    private Label _remainingLabel;
+    @FXML
+    private ListView<String> _filesListView;
     
     // Reference to the main application.
     private MainApp _mainApp;
@@ -76,10 +100,6 @@ public class TableController {
      * Initializes the controller class. This method is automatically called
      * after the fxml file has been loaded.
      */
-    @FXML
-    private void initialize() {
-    	initTable();
-    }
     
     public void setMainApp(MainApp mainApp) {
     	_mainApp = mainApp;
@@ -107,7 +127,8 @@ public class TableController {
     
     /////////////////////////////// Initialization  ///////////////////////////////
     
-    private void initTable() {
+    @FXML
+    private void initialize() {
     	initNameColumn();
     	
     	initSizeColumn();
@@ -119,6 +140,11 @@ public class TableController {
     	initDownloadColumn();
     	
     	initUploadColumn();
+    	
+    	showTorrentInfo(null);
+    	
+    	_torrentTable.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, newValue) -> showTorrentInfo(newValue));
     }
     
     private void initNameColumn() {
@@ -145,6 +171,8 @@ public class TableController {
     		String humanReadble = formatSize(length, true);
     		return new SimpleStringProperty(humanReadble);
     	});
+    	
+    	_sizeColumn.setStyle("-fx-alignment: CENTER;");
     }
     
     private static String formatSize(long bytes, boolean si) {
@@ -378,6 +406,7 @@ public class TableController {
         if (selectedIndex < 0) {
         	return;
         } 
+        task.remove();
         _torrentTable.getItems().remove(selectedIndex);
         runInBackground(Action.REMOVE, _torrentClient, task.getTorrentSession());
     }
@@ -421,7 +450,7 @@ public class TableController {
     	chooser.setInitialDirectory(new File(torrentFile.getParent())); 
     }
     
-    private static class TorrentTask extends Task<Void> {
+    private class TorrentTask extends Task<Void> {
     	
     	private final TorrentSession _torrentSession;
     	private final TorrentClient _torrentClient;
@@ -435,7 +464,7 @@ public class TableController {
 		@Override
 		protected Void call() throws Exception {
 			updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
-			updateMessage("Adding");
+			updateMessage("Adding|NaN|NaN");
 			String status = null;
 			String message = null;
 			String format = "%s|%s/s|%s/s";
@@ -469,6 +498,10 @@ public class TableController {
 				
 				message = String.format(format, status, downloadRate, uploadRate);
 				updateMessage(message);
+				/*if(this.equals(_torrentTable.getSelectionModel().getSelectedItem())) {
+					setDownloadedLabel(_torrentSession);
+					setRaminingLabel(_torrentSession);
+				}*/
 				
 				TimeUnit.SECONDS.sleep(1);
 			}
@@ -491,6 +524,10 @@ public class TableController {
 		public boolean isRemoved() {
 			return _remove;
 		}
+		
+		public void remove() {
+			_remove = true;
+		}
     }
     
     private static void runInBackground(Action action, final TorrentClient torrentClient,
@@ -511,10 +548,89 @@ public class TableController {
 					break;
 				}
 				
-			}
+			}	
 		};
 		Thread th = new Thread(rn);
 		th.setDaemon(true);
 		th.start();
+    }
+    
+    /////////////////////////////// Tabs ///////////////////////////////
+    public void showTorrentInfo(TorrentTask task) {
+    	if (task != null) {
+    		TorrentSession session = task.getTorrentSession();
+    		setTotalSizeLabel(session);
+    		setCreatedOnLabel(session);
+    		setCreatedByLabel(session);
+    		setHashLabel(session);
+    		setCommentLabel(session);
+    		setPiecesLabel(session);
+    		setDownloadedLabel(session);
+    		setRaminingLabel(session);
+    		populateFilesListView(session);
+    	} else {
+    		_totalSizeLabel.setText("");
+    		_createdOnLabel.setText("");
+    		_createdByLabel.setText("");
+    		_hashLabel.setText("");
+    		_commentLabel.setText("");
+    		_piecesLabel.setText("");
+    		_downloadedLabel.setText("");
+    		_remainingLabel.setText("");
+    	}
+    }
+    
+    private void setTotalSizeLabel(TorrentSession session) {
+    	long length = session.getMetaInfo().getInfoDictionary().getLength();
+		String humanReadble = formatSize(length, true);
+    	_totalSizeLabel.setText(humanReadble);
+    }
+    
+    private void setCreatedOnLabel(TorrentSession session) {
+    	Date createdOn = session.getMetaInfo().getCreationDate();
+    	String date = "";
+    	if (createdOn != null) {
+    		SimpleDateFormat dateFormat = new SimpleDateFormat("dd-mm-yyyyy hh:mm:ss"); 
+    		date = dateFormat.format(createdOn);
+    	}
+    	
+    	_createdOnLabel.setText(date);
+    }
+    
+    private void setCreatedByLabel(TorrentSession session) {
+    	String createdBy = session.getMetaInfo().getCreatedBy();
+    	if(createdBy == null) {
+    		createdBy = "";
+    	}
+    	_createdByLabel.setText(createdBy);
+    }
+    
+    private void setHashLabel(TorrentSession session) {
+    	_hashLabel.setText(session.getMetaInfo().getHexInfoHash());
+    }
+    
+    private void setCommentLabel(TorrentSession session) {
+    	String comment = session.getMetaInfo().getComment();
+    	if(comment == null) {
+    		comment = "";
+    	}
+    	_commentLabel.setText(comment);
+    }
+    
+    private void setPiecesLabel(TorrentSession session) {
+    	_piecesLabel.setText(Integer.toString(session.getPieceRepository().size()));
+    }
+    
+    private void setDownloadedLabel(TorrentSession session) {
+    	_downloadedLabel.setText(formatSize(session.getSessionInfo().getDownloaded(), true));
+    }
+    
+    private void setRaminingLabel(TorrentSession session) {
+    	_remainingLabel.setText(Long.toString(session.getSessionInfo().getLeft()));
+    }
+    
+    private void populateFilesListView(TorrentSession session) {
+    	_filesListView.getItems().clear();
+    	_filesListView.getItems().addAll(session.getFileNames());
     }
 }
