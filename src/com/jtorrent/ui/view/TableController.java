@@ -5,18 +5,26 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.jtorrent.peer.Peer;
+import com.jtorrent.peer.PeerManager;
 import com.jtorrent.peer.PeerManager.Rates;
 import com.jtorrent.torrent.TorrentClient;
 import com.jtorrent.torrent.TorrentSession;
 import com.jtorrent.torrent.restore.RestoreManager;
 import com.jtorrent.ui.MainApp;
+import com.jtorrent.ui.model.PeerDisplay;
+import com.jtorrent.ui.utils.Utils;
 
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -26,6 +34,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -57,6 +66,11 @@ public class TableController {
     @FXML
     private TableColumn<TorrentTask, String> _uploadColumn;
     
+    // Tabs
+    @FXML
+    private TabPane _tabPane;
+    
+    // Info tab
     @FXML
     private Label _totalSizeLabel;
     @FXML
@@ -75,6 +89,18 @@ public class TableController {
     private Label _remainingLabel;
     @FXML
     private ListView<String> _filesListView;
+    
+    // Peers tab
+    @FXML
+    private TableView<PeerDisplay> _peersTable;
+    @FXML
+    private TableColumn<PeerDisplay, String> _ipColumn;
+    @FXML
+    private TableColumn<PeerDisplay, String> _peerIdColumn;
+    @FXML
+    private TableColumn<PeerDisplay, String> _downloadSpeedColumn;
+    @FXML
+    private TableColumn<PeerDisplay, String> _uploadSpeedColumn;
     
     // Reference to the main application.
     private MainApp _mainApp;
@@ -108,8 +134,7 @@ public class TableController {
     public void setTorrentClient(TorrentClient torrentClient) {
     	_torrentClient = torrentClient;
     	restorePreviousSession();
-    }
-    
+    }    
     
     private void restorePreviousSession() {
     	RestoreManager restoreManger = _torrentClient.getRestoreManager();
@@ -141,46 +166,28 @@ public class TableController {
     	
     	initUploadColumn();
     	
-    	showTorrentInfo(null);
+    	updateInfoTab(null);
     	
     	_torrentTable.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, newValue) -> showTorrentInfo(newValue));
+                (observable, oldValue, newValue) -> updateInfoTab(newValue));
+    	
+    	initializePeersTable();
     }
     
     private void initNameColumn() {
     	_nameColumn.setCellValueFactory(cellData -> new SimpleStringProperty(
-    			formatFileName(cellData.getValue().getTorrentSession().getTorrentFileName())));
-    }
-    
-    private String formatFileName(String fileName) {
-    	// FIrst change the path to be POSIX friendly.
-    	int idx = fileName.replaceAll("\\\\", "/").lastIndexOf("/");
-    	// Extract the name, including the file extension.
-    	String nameAndExt = idx >= 0 ? fileName.substring(idx + 1) : fileName;
-    	// Find where the name ends.
-    	idx = nameAndExt.lastIndexOf('.');
-    	// Extract the name of the file.
-    	String name = nameAndExt.substring(0, idx);
-    	return name;
+    			Utils.formatFileName(cellData.getValue().getTorrentSession().getTorrentFileName())));
     }
     
     private void initSizeColumn() {
     	_sizeColumn.setCellValueFactory(cellData -> {
     		TorrentSession session = cellData.getValue().getTorrentSession();
     		long length = session.getMetaInfo().getInfoDictionary().getLength();
-    		String humanReadble = formatSize(length, true);
+    		String humanReadble = Utils.formatSize(length, true);
     		return new SimpleStringProperty(humanReadble);
     	});
     	
     	_sizeColumn.setStyle("-fx-alignment: CENTER;");
-    }
-    
-    private static String formatSize(long bytes, boolean si) {
-        int unit = si ? 1000 : 1024;
-        if (bytes < unit) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(unit));
-        String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp-1) + (si ? "" : "i");
-        return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
     }
     
     private void initStatusColumn() {
@@ -304,23 +311,16 @@ public class TableController {
     /////////////////////////////// Event handling  ///////////////////////////////
     
     public void addNewTorrent(TorrentSession torrentSession) {
-    	if(isInTable(torrentSession)) {
+    	if(_torrentFiles.contains(torrentSession.getTorrentFileName())) {
     		showDialog(AlertType.INFORMATION, "Torrent added", null,
     				"Torrent already added to list.");
             return;
     	}
     	
     	try {
-			TorrentTask task = new TorrentTask(torrentSession, _torrentClient);
-			// Add the torrent to the table
-			_torrentTable.getItems().add(task);
-			// Start the UI update task.
-			_executor.submit(task);		
-
-    		// Add the torrent to the list.
-			_torrentFiles.add(torrentSession.getTorrentFileName());
-			// Start the torrent download
-			_torrentClient.startNewSession(torrentSession);
+    		// Start the torrent download
+    		_torrentClient.startNewSession(torrentSession);
+    		submitSession(torrentSession);
     	} catch (Exception e) {
 			// Error occurred.
     		showDialog(AlertType.WARNING, "Cannot start torrent", "Error selecting torrent",
@@ -329,9 +329,16 @@ public class TableController {
     }
     
     public void addNewTorrent(String fileName, String directory) {
+    	if( _torrentFiles.contains(fileName)) {
+    		showDialog(AlertType.INFORMATION, "Torrent added", null,
+    				"Torrent already added to list.");
+            return;
+    	}
+    	
     	try {
-			TorrentSession torrentSession = _torrentClient.startNewSession(fileName, directory);
-			addNewTorrent(torrentSession);
+    		// Start the torrent download
+    		TorrentSession torrentSession = _torrentClient.startNewSession(fileName, directory);
+    		submitSession(torrentSession);
 		} catch (Exception e) {
 			// Error occurred.
 			showDialog(AlertType.WARNING, "Cannot start torrent", "Error selecting torrent",
@@ -339,8 +346,15 @@ public class TableController {
 		}
     }
     
-    public boolean isInTable(TorrentSession torrentSession) {
-    	return _torrentFiles.contains(torrentSession.getTorrentFileName());
+    private void submitSession(TorrentSession torrentSession) {
+    	TorrentTask task = new TorrentTask(torrentSession);
+		// Add the torrent to the table
+		_torrentTable.getItems().add(task);
+		// Start the UI update task.
+		_executor.submit(task);		
+
+		// Add the torrent to the list.
+		_torrentFiles.add(torrentSession.getTorrentFileName());
     }
     
     /**
@@ -452,22 +466,30 @@ public class TableController {
     
     private class TorrentTask extends Task<Void> {
     	
+    	private static final int UPDATE_SLEEP_INTERVAL_SECONDS = 1;
+    	private static final int TAB_UPDATE_CYCLE = 3;
+    	
     	private final TorrentSession _torrentSession;
-    	private final TorrentClient _torrentClient;
     	private volatile boolean _remove;
     	
-    	public TorrentTask(TorrentSession torrentSession, TorrentClient torrentClient) {
+    	public TorrentTask(TorrentSession torrentSession) {
 			_torrentSession = torrentSession;
-			_torrentClient = torrentClient;
 		}
 
 		@Override
 		protected Void call() throws Exception {
 			updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
 			updateMessage("Adding|NaN|NaN");
+			
 			String status = null;
 			String message = null;
 			String format = "%s|%s/s|%s/s";
+			
+			// The update cycle for refreshing the tabs.The updates must not be 
+			// done too often as the update requests will overwhelm the fx thread
+			// and it will block. To remedy this, updates are sent every few cycles
+			// to avoid eventual 
+			int update = TAB_UPDATE_CYCLE;
 			while(!_remove) {
 				if(_torrentSession.isQueuing()) {
 					updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
@@ -482,31 +504,62 @@ public class TableController {
 					status = "Downloading";
 				} else if (_torrentSession.isFinilizing()) {
 					updateProgress(1, 1);
-					status = "Finilizing";
 				} else if (_torrentSession.isSeeding()) {
 					updateProgress(1, 1);
 					status = "Seeding";
 				} else if (_torrentSession.isStopped()) {
-					double progress = _torrentSession.getPieceRepository().completedPercent();
-					updateProgress(progress, 100);
 					status = "Stopped";
 				}
 				
+				if(_torrentSession.isDownloading() || _torrentSession.isFinilizing() 
+						|| _torrentSession.isSeeding()) {
+					// If the currently selected item is this one, then the info tab
+					// needs to be updated to reflect the new state changes.
+					if(update == 0) {
+						updateTab();
+						update = TAB_UPDATE_CYCLE;
+					} else {
+						update--;
+					}
+				}
+				
 				Rates rates = _torrentSession.getPeerManager().getRates();
-				String downloadRate = formatSize((long)rates.getDownloadRate(), true);
-				String uploadRate = formatSize((long)rates.getUploadRate(), true);
+				String downloadRate = Utils.formatSize((long)rates.getDownloadRate(), true);
+				String uploadRate = Utils.formatSize((long)rates.getUploadRate(), true);
 				
 				message = String.format(format, status, downloadRate, uploadRate);
 				updateMessage(message);
-				/*if(this.equals(_torrentTable.getSelectionModel().getSelectedItem())) {
-					setDownloadedLabel(_torrentSession);
-					setRaminingLabel(_torrentSession);
-				}*/
 				
-				TimeUnit.SECONDS.sleep(1);
+				TimeUnit.SECONDS.sleep(UPDATE_SLEEP_INTERVAL_SECONDS);
 			}
 			
 			return null;
+		}
+		
+		private void updateTab() {
+			// The task runs as a daemon, so it is basically a background thread.
+			// To update the UI, the following methods need to be sent to the FX
+			// thread. This is accomplished using the Platform.runLater() method.
+			if(this.equals(_torrentTable.getSelectionModel().getSelectedItem())) {
+				if(isInfoTabSelected()) {					
+					Platform.runLater(new Runnable() {
+						
+						@Override
+						public void run() {
+							setDownloadedLabel(_torrentSession);
+							setRaminingLabel(_torrentSession);
+						}
+					});				
+				} else {
+					Platform.runLater(new Runnable() {
+						
+						@Override
+						public void run() {
+							updatePeersTab(TorrentTask.this);
+						}
+					});		
+				}
+			}
 		}
 		
 		public TorrentSession getTorrentSession() {
@@ -556,7 +609,21 @@ public class TableController {
     }
     
     /////////////////////////////// Tabs ///////////////////////////////
-    public void showTorrentInfo(TorrentTask task) {
+    public void updateTabPane(TorrentTask task) {
+    	if(isInfoTabSelected()) {
+    		updateInfoTab(task);
+    	} else {
+    		updatePeersTab(task);
+    	}
+    }
+    
+    private boolean isInfoTabSelected() {
+    	String selectedTab = _tabPane.getSelectionModel().getSelectedItem().getText();
+    	return selectedTab.equals("Info");
+    }
+    
+    ///////////////////////////// Info tab /////////////////////////////
+    public void updateInfoTab(TorrentTask task) {    	
     	if (task != null) {
     		TorrentSession session = task.getTorrentSession();
     		setTotalSizeLabel(session);
@@ -582,7 +649,7 @@ public class TableController {
     
     private void setTotalSizeLabel(TorrentSession session) {
     	long length = session.getMetaInfo().getInfoDictionary().getLength();
-		String humanReadble = formatSize(length, true);
+		String humanReadble = Utils.formatSize(length, true);
     	_totalSizeLabel.setText(humanReadble);
     }
     
@@ -622,15 +689,36 @@ public class TableController {
     }
     
     private void setDownloadedLabel(TorrentSession session) {
-    	_downloadedLabel.setText(formatSize(session.getSessionInfo().getDownloaded(), true));
+    	_downloadedLabel.setText(Utils.formatSize(session.getSessionInfo().getDownloaded(), true));
     }
     
     private void setRaminingLabel(TorrentSession session) {
-    	_remainingLabel.setText(Long.toString(session.getSessionInfo().getLeft()));
+    	_remainingLabel.setText(Utils.formatSize(session.getSessionInfo().getLeft(), true));
     }
     
     private void populateFilesListView(TorrentSession session) {
     	_filesListView.getItems().clear();
     	_filesListView.getItems().addAll(session.getFileNames());
+    }
+    
+    ///////////////////////////// Peers tab /////////////////////////////
+    private void initializePeersTable() {
+    	_ipColumn.setCellValueFactory(cellData -> cellData.getValue().getIp());
+    	_peerIdColumn.setCellValueFactory(cellData -> cellData.getValue().getPeerId());
+    	_downloadSpeedColumn.setCellValueFactory(cellData -> cellData.getValue().getDownloadSpeed());
+    	_uploadSpeedColumn.setCellValueFactory(cellData -> cellData.getValue().getUploadSpeed());
+    }
+    
+    public void updatePeersTab(TorrentTask task) {
+    	if (task != null) {
+    		List<PeerDisplay> peersToDisplay = new LinkedList<>();
+    		PeerManager peerManager = task.getTorrentSession().getPeerManager();
+    		Set<Peer> connectedPeers = peerManager.getConnectedPeers();
+    		for(Peer peer : connectedPeers) {
+    			peersToDisplay.add(new PeerDisplay(peer));
+    		}
+    		
+    		_peersTable.setItems(FXCollections.observableList(peersToDisplay));
+    	}
     }
 }

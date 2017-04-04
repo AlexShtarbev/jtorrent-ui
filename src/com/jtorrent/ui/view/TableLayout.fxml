@@ -14,7 +14,6 @@
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 
-
 <BorderPane xmlns="http://javafx.com/javafx/8.0.102" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.jtorrent.ui.view.TableController">
    <center>
       <AnchorPane>
@@ -52,7 +51,7 @@
    <bottom>
       <AnchorPane BorderPane.alignment="CENTER">
          <children>
-            <TabPane layoutY="-54.0" prefHeight="254.0" prefWidth="924.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <TabPane fx:id="_tabPane" layoutY="-54.0" prefHeight="254.0" prefWidth="924.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                <tabs>
                   <Tab closable="false" text="Info">
                      <content>
@@ -101,7 +100,17 @@
                   </Tab>
                   <Tab closable="false" text="Peers">
                      <content>
-                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
+                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                           <children>
+                              <TableView fx:id="_peersTable" prefHeight="225.0" prefWidth="924.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                <columns>
+                                  <TableColumn fx:id="_ipColumn" prefWidth="200.0" text="IP" />
+                                  <TableColumn fx:id="_peerIdColumn" prefWidth="200.0" text="Peer id" />
+                                    <TableColumn fx:id="_downloadSpeedColumn" prefWidth="150.0" text="Download speed" />
+                                    <TableColumn fx:id="_uploadSpeedColumn" prefWidth="150.0" text="Upload speed" />
+                                </columns>
+                              </TableView>
+                           </children></AnchorPane>
                      </content>
                   </Tab>
                </tabs>
