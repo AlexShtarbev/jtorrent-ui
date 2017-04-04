@@ -18,10 +18,10 @@ public class PeerDisplay {
 		_peerId = new SimpleStringProperty(peer.getHexPeerID());
 		
 		_downloadSpeed =  new SimpleStringProperty(Utils.formatSize((long) peer.getDownloadRate().
-				rate(), true));
+				rate(), true) + "/s");
 		
 		_uploadSpeed =  new SimpleStringProperty(Utils.formatSize((long) peer.getUploadRate().
-				rate(), true));
+				rate(), true) + "/s");
 	}
 	
 	public StringProperty getIp() {

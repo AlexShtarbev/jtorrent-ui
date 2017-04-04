@@ -72,5 +72,11 @@ public class MainApp extends Application {
 	public static void main(String[] args) {
 		launch(args);
 	}
+	
+	@Override
+	public void stop() throws Exception {
+		_torrentClient.stop();
+		super.stop();
+	}
 }
 

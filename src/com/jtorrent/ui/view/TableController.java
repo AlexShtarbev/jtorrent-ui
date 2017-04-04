@@ -1,6 +1,8 @@
 package com.jtorrent.ui.view;
 
+import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedList;
@@ -14,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import com.jtorrent.peer.Peer;
 import com.jtorrent.peer.PeerManager;
 import com.jtorrent.peer.PeerManager.Rates;
+import com.jtorrent.storage.FileStore;
 import com.jtorrent.torrent.TorrentClient;
 import com.jtorrent.torrent.TorrentSession;
 import com.jtorrent.torrent.restore.RestoreManager;
@@ -37,6 +40,7 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.DirectoryChooser;
@@ -85,6 +89,8 @@ public class TableController {
     private Label _piecesLabel;
     @FXML
     private Label _downloadedLabel;
+    @FXML
+    private Label _uploadedLabel;
     @FXML
     private Label _remainingLabel;
     @FXML
@@ -154,6 +160,8 @@ public class TableController {
     
     @FXML
     private void initialize() {
+    	initTableView();
+    	
     	initNameColumn();
     	
     	initSizeColumn();
@@ -170,8 +178,29 @@ public class TableController {
     	
     	_torrentTable.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> updateInfoTab(newValue));
-    	
+    	// Tabs
+    	initTabPane();
     	initializePeersTable();
+    }
+    
+    private void initTableView() {
+    	_torrentTable.setRowFactory( tv -> {
+    	    TableRow<TorrentTask> row = new TableRow<>();
+    	    row.setOnMouseClicked(event -> {
+    	    	// On double click open the file location of the downloading(ed)
+    	    	// resources in the default system file explorer.
+    	        if (event.getClickCount() == 2 && (! row.isEmpty()) ) {
+    	            TorrentSession session = row.getItem().getTorrentSession();
+    	            FileStore store = session.getFileStore();
+    	            try {
+					    Desktop.getDesktop().open(new File(store.getParentName()));
+					} catch (IOException e) {
+					    e.printStackTrace();
+					}
+    	        }
+    	    });
+    	    return row ;
+    	});
     }
     
     private void initNameColumn() {
@@ -609,6 +638,21 @@ public class TableController {
     }
     
     /////////////////////////////// Tabs ///////////////////////////////
+    private void initTabPane() {
+    	// Update immediately the tab pane when the user selects a new one.
+    	_tabPane.getSelectionModel().selectedItemProperty().addListener((ov, oldTab, newTab) -> {
+    		TorrentTask task = _torrentTable.getSelectionModel().getSelectedItem();
+    		if(task == null) {
+    			return;
+    		}
+    		
+            if(newTab.getText().equals("Info")) {
+            	updateInfoTab(task);
+            } else if (newTab.getText().equals("Peers")) {
+            	updatePeersTab(task);
+            }
+        });
+    }
     public void updateTabPane(TorrentTask task) {
     	if(isInfoTabSelected()) {
     		updateInfoTab(task);
@@ -634,6 +678,7 @@ public class TableController {
     		setPiecesLabel(session);
     		setDownloadedLabel(session);
     		setRaminingLabel(session);
+    		setUploadedLabel(session);
     		populateFilesListView(session);
     	} else {
     		_totalSizeLabel.setText("");
@@ -644,6 +689,7 @@ public class TableController {
     		_piecesLabel.setText("");
     		_downloadedLabel.setText("");
     		_remainingLabel.setText("");
+    		_uploadedLabel.setText("");
     	}
     }
     
@@ -694,6 +740,10 @@ public class TableController {
     
     private void setRaminingLabel(TorrentSession session) {
     	_remainingLabel.setText(Utils.formatSize(session.getSessionInfo().getLeft(), true));
+    }
+    
+    private void setUploadedLabel(TorrentSession session) {
+    	_downloadedLabel.setText(Utils.formatSize(session.getSessionInfo().getUploaded(), true));
     }
     
     private void populateFilesListView(TorrentSession session) {
