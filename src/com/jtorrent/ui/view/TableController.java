@@ -270,6 +270,7 @@ public class TableController {
 		                        // an indeterminate status.
 		                    	if(item < 0) {
 		                    		_progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+		                    		setText("");
 		                    		return;
 		                    	}
 		                    	
@@ -347,7 +348,6 @@ public class TableController {
     	}
     	
     	try {
-    		// Start the torrent download
     		_torrentClient.startNewSession(torrentSession);
     		submitSession(torrentSession);
     	} catch (Exception e) {
@@ -523,6 +523,7 @@ public class TableController {
 				if(_torrentSession.isQueuing()) {
 					updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
 					status = "Queuing";
+					updateMessage(status);
 				} else if (_torrentSession.isChecking()) {
 					double progress = _torrentSession.getCheckedPiecesPrgress() * 100;
 					updateProgress(progress, 100);
@@ -537,6 +538,8 @@ public class TableController {
 					updateProgress(1, 1);
 					status = "Seeding";
 				} else if (_torrentSession.isStopped()) {
+					double progress = _torrentSession.getPieceRepository().completedPercent();
+					updateProgress(progress, 100);
 					status = "Stopped";
 				}
 				
@@ -612,29 +615,37 @@ public class TableController {
 		}
     }
     
-    private static void runInBackground(Action action, final TorrentClient torrentClient,
+    private void runInBackground(Action action, final TorrentClient torrentClient,
     		final TorrentSession torrentSession) {
     	Runnable rn = new Runnable() {
 			
 			@Override
 			public void run() {
-				switch(action) {
-				case START: 
-					torrentClient.resumeTorrentSession(torrentSession);
-					break;
-				case STOP:
-					torrentClient.stopTorrentSession(torrentSession);
-					break;
-				case REMOVE:
-					torrentClient.removeTorrentSession(torrentSession);
-					break;
+				try {
+					switch(action) {
+					case START: 
+						torrentClient.resumeTorrentSession(torrentSession);
+						break;
+					case STOP:
+						torrentClient.stopTorrentSession(torrentSession);
+						break;
+					case REMOVE:
+						torrentClient.removeTorrentSession(torrentSession);
+						break;
+					}
+				} catch (Exception e){
+					Platform.runLater(new Runnable() {
+						
+						@Override
+						public void run() {
+							showDialog(AlertType.ERROR, "Error executing operation", "", e.getMessage());
+						}
+					});
 				}
 				
 			}	
 		};
-		Thread th = new Thread(rn);
-		th.setDaemon(true);
-		th.start();
+		_executor.execute(rn);
     }
     
     /////////////////////////////// Tabs ///////////////////////////////
@@ -743,7 +754,7 @@ public class TableController {
     }
     
     private void setUploadedLabel(TorrentSession session) {
-    	_downloadedLabel.setText(Utils.formatSize(session.getSessionInfo().getUploaded(), true));
+    	_uploadedLabel.setText(Utils.formatSize(session.getSessionInfo().getUploaded(), true));
     }
     
     private void populateFilesListView(TorrentSession session) {
@@ -752,6 +763,7 @@ public class TableController {
     }
     
     ///////////////////////////// Peers tab /////////////////////////////
+    
     private void initializePeersTable() {
     	_ipColumn.setCellValueFactory(cellData -> cellData.getValue().getIp());
     	_peerIdColumn.setCellValueFactory(cellData -> cellData.getValue().getPeerId());
