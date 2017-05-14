@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -27,7 +28,6 @@ import com.jtorrent.ui.utils.Utils;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -46,7 +46,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 
-public class TableController {
+public class Controller {
 	
 	private enum Action {
 		START,
@@ -111,13 +111,13 @@ public class TableController {
     // Reference to the main application.
     private MainApp _mainApp;
     
-    private final List<String> _torrentFiles;    
+    private final Set<String> _torrentFiles;    
     private TorrentClient _torrentClient;
     
     private final ExecutorService _executor;
     
-    public TableController() {
-    	_torrentFiles = new LinkedList<>();
+    public Controller() {
+    	_torrentFiles = new HashSet<>();
     	_executor =  Executors.newCachedThreadPool(new ThreadFactory() {
     	      @Override
     	      public Thread newThread(Runnable r) {
@@ -451,6 +451,7 @@ public class TableController {
         } 
         task.remove();
         _torrentTable.getItems().remove(selectedIndex);
+        _torrentFiles.remove(task.getTorrentSession().getTorrentFileName());
         runInBackground(Action.REMOVE, _torrentClient, task.getTorrentSession());
     }
     
@@ -701,6 +702,7 @@ public class TableController {
     		_downloadedLabel.setText("");
     		_remainingLabel.setText("");
     		_uploadedLabel.setText("");
+    		_filesListView.getItems().clear();
     	}
     }
     

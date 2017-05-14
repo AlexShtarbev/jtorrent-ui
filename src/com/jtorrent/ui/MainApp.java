@@ -9,14 +9,14 @@ import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 
 import com.jtorrent.torrent.TorrentClient;
-import com.jtorrent.ui.view.TableController;
+import com.jtorrent.ui.view.Controller;
 
 public class MainApp extends Application {
 	private Stage _primaryStage;
     private BorderPane _rootLayout;
 	
     private TorrentClient _torrentClient;
-    private TableController _tableController;
+    private Controller _tableController;
     
 	@Override
 	public void start(Stage primaryStage) {

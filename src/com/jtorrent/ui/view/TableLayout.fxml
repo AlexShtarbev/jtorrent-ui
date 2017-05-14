@@ -16,7 +16,7 @@
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 
-<BorderPane xmlns="http://javafx.com/javafx/8.0.102" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.jtorrent.ui.view.TableController">
+<BorderPane xmlns="http://javafx.com/javafx/8.0.102" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.jtorrent.ui.view.Controller">
    <center>
       <AnchorPane minHeight="565.0">
          <children>
@@ -130,9 +130,6 @@
          </children>
       </AnchorPane>
    </top>
-   <bottom>
-      <AnchorPane BorderPane.alignment="CENTER" />
-   </bottom>
    <cursor>
       <Cursor fx:constant="DEFAULT" />
    </cursor>
